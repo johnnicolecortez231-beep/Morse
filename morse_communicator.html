@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Torch Station - Morse Flash Communicator</title>
+    <style>
+        :root {
+            --bg-main: #09090e;
+            --bg-panel: #12121a;
+            --bg-surface: #1c1c28;
+            --accent: #ffb703; /* Signal Amber/Yellow */
+            --text-main: #f1f1f3;
+            --text-muted: #8e8e93;
+            --border: #2a2a3a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 15px;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 550px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 15px;
+        }
+
+        header h1 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .status-badge {
+            font-size: 0.75rem;
+            background: var(--bg-surface);
+            padding: 4px 10px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            color: var(--accent);
+            font-family: monospace;
+        }
+
+        /* Signal Monitoring Window Layout */
+        .monitor-wrapper {
+            width: 100%;
+            height: 120px;
+            background: #040406;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .signal-indicator {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #222;
+            transition: all 0.05s ease;
+            box-shadow: 0 0 0px rgba(255, 183, 3, 0);
+        }
+
+        .signal-indicator.active {
+            background: var(--accent);
+            box-shadow: 0 0 30px var(--accent), 0 0 60px var(--accent);
+        }
+
+        .live-char-display {
+            position: absolute;
+            bottom: 10px;
+            font-family: monospace;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--accent);
+            letter-spacing: 2px;
+        }
+
+        /* Configuration Deck */
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        textarea {
+            width: 100%;
+            height: 80px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-main);
+            padding: 12px;
+            font-size: 1rem;
+            outline: none;
+            resize: none;
+        }
+
+        textarea:focus {
+            border-color: var(--accent);
+        }
+
+        .morse-output-preview {
+            background: #09090e;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 1.1rem;
+            letter-spacing: 3px;
+            min-height: 45px;
+            word-break: break-all;
+            color: var(--text-muted);
+        }
+
+        .morse-output-preview span.current {
+            color: var(--accent);
+            font-weight: bold;
+            background: rgba(255, 183, 3, 0.15);
+            padding: 2px;
+            border-radius: 2px;
+        }
+
+        /* Action Buttons Deck */
+        .controls-deck {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        .btn {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: #000;
+            border: none;
+        }
+
+        .btn-primary:disabled {
+            background: var(--bg-surface);
+            color: var(--text-muted);
+            cursor: not-allowed;
+            border: 1px solid var(--border);
+        }
+
+        /* Hidden raw baseline camera video viewframe */
+        #hiddenVideo {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <header>
+            <h1>MORSE FLASH TRANSMITTER</h1>
+            <div class="status-badge" id="hardwareStatus">CAMERA SYNC REQ</div>
+        </header>
+
+        <!-- Real-Time Signal Monitoring Screen -->
+        <div class="monitor-wrapper">
+            <div class="signal-indicator" id="signalLight"></div>
+            <div class="live-char-display" id="liveChar">-</div>
+            <video id="hiddenVideo" autoplay playsinline muted></video>
+        </div>
+
+        <!-- Interactive Settings Form -->
+        <div class="input-group">
+            <label>Message to Transmit</label>
+            <textarea id="messageInput" placeholder="Type your secret message here... (e.g., SOS or HELLO)"></textarea>
+        </div>
+
+        <div class="input-group">
+            <label>Live Morse Code Stream Preview</label>
+            <div class="morse-output-preview" id="morsePreview">... --- ...</div>
+        </div>
+
+        <!-- Action Grid Layout Controls -->
+        <div class="controls-deck">
+            <button class="btn btn-primary" id="transmitBtn" disabled>Transmit Signal</button>
+            <button class="btn" id="initCamBtn">🔒 Init Camera</button>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('hiddenVideo');
+        const initCamBtn = document.getElementById('initCamBtn');
+        const transmitBtn = document.getElementById('transmitBtn');
+        const messageInput = document.getElementById('messageInput');
+        const morsePreview = document.getElementById('morsePreview');
+        const signalLight = document.getElementById('signalLight');
+        const liveChar = document.getElementById('liveChar');
+        const hardwareStatus = document.getElementById('hardwareStatus');
+
+        let videoTrack = null;
+        let isTransmitting = false;
+        let transmitTimeoutIds = [];
+
+        // Global Dynamic Standard Base Unit Timing (1 Unit = 120ms for fast crisp blinking operations)
+        const UNIT_TIME = 150; 
+
+        // International standard Morse code translation dictionary matrix maps
+        const morseDictionary = {
+            'a': '.-',    'b': '-...',  'c': '-.-.',  'd': '-..',   'e': '.',
+            'f': '..-.',  'g': '--.',   'h': '....',  'i': '..',    'j': '.---',
+            'k': '-.-',   'l': '.-..',  'm': '--',    'n': '-.',    'o': '---',
+            'p': '.--.',  'q': '--.-',  'r': '.-.',   's': '...',   't': '-',
+            'u': '..-',   'v': '...-',  'w': '.--',   'x': '-..-',  'y': '-.--',
+            'z': '--..',  '1': '.----', '2': '..---', '3': '...--', '4': '....-',
+            '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.',
+            '0': '-----', ' ': '/'
+        };
+
+        // Initialize Core Mobile Hardware Camera Lens Track
+        async function initCameraHardware() {
+            try {
+                if (videoTrack) {
+                    videoTrack.stop();
+                }
+
+                // Force browser setup constraint loops targeting exact environment rear facing camera
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+
+                video.srcObject = stream;
+                videoTrack = stream.getVideoTracks()[0];
+
+                // Verify if target system hardware contains an addressable physical torch lens module
+                const capabilities = videoTrack.getCapabilities();
+                if ('torch' in capabilities) {
+                    hardwareStatus.innerText = "READY [TORCH MATCH]";
+                    transmitBtn.disabled = false;
+                    initCamBtn.style.borderColor = "var(--accent)";
+                    initCamBtn.innerText = "🔄 Re-Sync";
+                } else {
+                    hardwareStatus.innerText = "PREVIEW ONLY (NO TORCH)";
+                    transmitBtn.disabled = false; // Allow fallback UI preview screen run loops anyway
+                }
+            } catch (err) {
+                console.error("Camera layout permission denied:", err);
+                hardwareStatus.innerText = "ERROR: NO LENS SYNC";
+            }
+        }
+
+        // Convert string arrays to readable Morse Code
+        function updateMorsePreviews() {
+            const text = messageInput.value.toLowerCase();
+            let previewString = "";
+
+            for (let char of text) {
+                if (morseDictionary[char]) {
+                    previewString += morseDictionary[char] + " ";
+                }
+            }
+            morsePreview.innerText = previewString.trim() || "... --- ...";
+        }
+
+        // Central Hardware Flash control interface execution routing blocks
+        async function setTorchState(isOn) {
+            if (!videoTrack) return;
+            try {
+                const capabilities = videoTrack.getCapabilities();
+                if ('torch' in capabilities) {
+                    await videoTrack.applyConstraints({
+                        advanced: [{ torch: isOn }]
+                    });
+                }
+            } catch (e) {
+                console.warn("Torch interaction state mismatch error:", e);
+            }
+
+            // Always mirror the physical torch state on the virtual dashboard monitoring circle
+            if (isOn) {
+                signalLight.classList.add('active');
+            } else {
+                signalLight.classList.remove('active');
+            }
+        }
+
+        // Native Morse timing transmission chain builder
+        function transmitSignalSequence() {
+            if (isTransmitting) {
+                // Emergency stop button execution routing path
+                isTransmitting = false;
+                transmitBtn.innerText = "Transmit Signal";
+                transmitBtn.classList.remove('btn-danger');
+                transmitBtn.classList.add('btn-primary');
+                liveChar.innerText = "-";
+                // Flush all pending future timeout queues cleanly
+                transmitTimeoutIds.forEach(id => clearTimeout(id));
+                transmitTimeoutIds = [];
+                setTorchState(false);
+                return;
+            }
+
+            const text = messageInput.value.toLowerCase().trim();
+            if (!text) return;
+
+            isTransmitting = true;
+            transmitBtn.innerText = "💥 STOP";
+            transmitBtn.className = "btn btn-primary btn-danger";
+
+            let timelinePointer = 0;
+            transmitTimeoutIds = [];
+
+            // Compile sequence array blocks processing timing logic rules
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                const code = morseDictionary[char];
+
+                if (!code) continue;
+
+                // Enqueue timing mark updates for active character trackers on UI monitor
+                ((c, currentIdx) => {
+                    let id = setTimeout(() => {
+                        liveChar.innerText = c === " " ? "[SPACE]" : c.toUpperCase();
+                    }, timelinePointer);
+                    transmitTimeoutIds.push(id);
+                })(char, i);
+
+                if (char === ' ') {
+                    // Space between words = 7 units (we add 4 units here because previous char added 3 units cushion)
+                    timelinePointer += 4 * UNIT_TIME;
+                    continue;
+                }
+
+                // Process internal elements (dots and dashes) of the character
+                for (let j = 0; j < code.length; j++) {
+                    const symbol = code[j];
+                    const symbolDuration = (symbol === '.') ? 1 : 3;
+
+                    // 1. Enqueue Flash Turn ON Trigger
+                    let onId = setTimeout(() => {
+                        setTorchState(true);
+                    }, timelinePointer);
+                    transmitTimeoutIds.push(onId);
+
+                    timelinePointer += symbolDuration * UNIT_TIME;
+
+                    // 2. Enqueue Flash Turn OFF Trigger
+                    let offId = setTimeout(() => {
+                        setTorchState(false);
+                    }, timelinePointer);
+                    transmitTimeoutIds.push(offId);
+
+                    // Space between parts of same letter = 1 unit
+                    timelinePointer += 1 * UNIT_TIME;
+                }
+
+                // Space between complete letters = 3 units (1 unit already added by the internal loop loop cushion)
+                timelinePointer += 2 * UNIT_TIME;
+            }
+
+            // Enqueue sequence chain clean up conclusion metrics
+            let endId = setTimeout(() => {
+                isTransmitting = false;
+                transmitBtn.innerText = "Transmit Signal";
+                transmitBtn.className = "btn btn-primary";
+                liveChar.innerText = "DONE";
+                setTorchState(false);
+            }, timelinePointer);
+            transmitTimeoutIds.push(endId);
+        }
+
+        // Attach layout event hook nodes listeners
+        initCamBtn.addEventListener('click', initCameraHardware);
+        transmitBtn.addEventListener('click', transmitSignalSequence);
+        messageInput.addEventListener('input', updateMorsePreviews);
+    </script>
+</body>
+</html>
